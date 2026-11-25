@@ -1,92 +1,43 @@
-# Iniciar o backend da Rota do Arraial
+# Arrancar o backend
 
-Os serviços Django são Contas, Catálogo e Comunidade. Cada um tem modelos, migrações e base de dados próprios. Cada serviço usa um ficheiro SQLite próprio. Em desenvolvimento local, o Django pode criá-lo junto do respetivo `manage.py`.
-
-## 1. Confirmar a configuração
-
-Instala Docker com o comando `docker compose` disponível. Executa os comandos seguintes na raiz do repositório, onde ficará o ficheiro `compose.yaml`.
+Executar em `backend/`, com o ambiente Python 3.12 ativo. A preparação do ambiente e o arranque com Docker estão no [README da raiz](../../README.md).
 
 ```sh
-docker compose version
-docker compose config --services
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py carregar_demo
+python manage.py runserver
 ```
 
-Os exemplos assumem os nomes `contas`, `catalogo`, `comunidade` e `gateway` (Nginx). Se os nomes usados no projeto forem diferentes, substitui-os pelos apresentados no segundo comando. Antes do primeiro arranque, prepara as variáveis previstas no Compose e nas configurações Django. Se existir `.env.example`, copia-o para o nome indicado pelo projeto e preenche os valores locais.
+Django ouve em **http://127.0.0.1:8000**. Para abrir a administração em `/admin/`, criar uma conta local com `python manage.py createsuperuser`. A conta dos dados fictícios serve apenas para relacionar os registos.
 
-## 2. Configurar os ficheiros SQLite
+## API disponível
 
-Em cada serviço Django, configura a ligação em `settings.py`. O exemplo usa a variável de ambiente `SQLITE_PATH` em Docker e o diretório do serviço no arranque local.
+| Método | Caminho | Resultado |
+|---|---|---|
+| GET | `/api/catalogo/edicoes/` | Lista pública de edições aprovadas, ordenadas por data e id. |
+| GET | `/api/catalogo/edicoes/<id>/` | Dados de uma edição aprovada. Uma edição inexistente ou pendente devolve 404. |
+| GET | `/api/contas/sessao/` | Devolve `user` (ou `null`) e `csrfToken`. Inicializa a proteção CSRF. |
+| POST | `/api/contas/sessao/` | Recebe JSON com `username` e `password`. Devolve a conta e o novo token CSRF. |
+| DELETE | `/api/contas/sessao/` | Termina a sessão. Devolve `user: null` e um token CSRF. |
 
-```python
-import os
+No React, usar caminhos relativos a `/api/`. O Vite encaminha o pedido para o Django. O navegador envia o cookie de sessão no mesmo domínio. Nos pedidos de escrita, enviar o token mais recente no cabeçalho `X-CSRFToken`. Após entrar, usar o token devolvido pelo POST. O backend identifica o autor por `request.user`.
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.environ.get("SQLITE_PATH") or BASE_DIR / "db.sqlite3",
-    }
-}
-```
+Um pedido de escrita sem CSRF válido é recusado com 403. No início de sessão, dados malformados devolvem 400 e credenciais inválidas devolvem 401. As funcionalidades de escrita de publicações, avaliações e cartaz pertencem às respetivas branches. Na edição do cartaz, verificar no servidor o organizador da edição e a sua validação.
 
-No `compose.yaml`, cada serviço recebe o seu próprio volume. O excerto abaixo mostra as linhas a integrar nas definições existentes. O processo Django deve ter permissão de escrita no diretório `/dados` do respetivo volume.
-
-```yaml
-services:
-  contas:
-    environment:
-      SQLITE_PATH: /dados/db.sqlite3
-    volumes:
-      - contas_sqlite:/dados
-  catalogo:
-    environment:
-      SQLITE_PATH: /dados/db.sqlite3
-    volumes:
-      - catalogo_sqlite:/dados
-  comunidade:
-    environment:
-      SQLITE_PATH: /dados/db.sqlite3
-    volumes:
-      - comunidade_sqlite:/dados
-
-volumes:
-  contas_sqlite:
-  catalogo_sqlite:
-  comunidade_sqlite:
-```
-
-O caminho interno é igual nos três contentores. O nome do volume determina que ficheiro pertence a cada serviço. No Git, guarda as migrações Django e inclui `*.sqlite3` e `*.sqlite3-*` no `.gitignore`.
-
-## 3. Arrancar os serviços
+## Após alterar modelos
 
 ```sh
-docker compose up -d --build contas catalogo comunidade gateway
-docker compose ps
+python manage.py makemigrations
+python manage.py migrate
+python manage.py check
+python manage.py test
 ```
 
-## 4. Aplicar as migrações
+Guardar o modelo e a respetiva migração no mesmo commit. Os testes usam uma base temporária.
 
-Os exemplos assumem que o diretório de trabalho de cada contentor contém o respetivo `manage.py`.
+## Horários e fotografias
 
-```sh
-docker compose exec contas python manage.py migrate
-docker compose exec catalogo python manage.py migrate
-docker compose exec comunidade python manage.py migrate
-```
+As datas de uma edição são datas civis. Para as atuações, `ItemCartaz.inicio` guarda data e hora com fuso. O projeto usa `USE_TZ = True` e `TIME_ZONE = "Europe/Lisbon"`. Em Lisboa, uma atuação às 21h de 15 de junho corresponde às 20h UTC.
 
-Para confirmar o estado do Catálogo, executa `docker compose exec catalogo python manage.py showmigrations`. As migrações aplicadas aparecem com `[X]`.
-
-## 5. Verificar a API
-
-Consulta a coluna `PORTS` de `docker compose ps` para identificar a porta local do gateway. Abre o endereço do gateway e acrescenta o caminho de listagem de edições definido na arquitetura, `/api/catalogo/edicoes`. Se o router Django usar barra final, acrescenta `/` ao caminho. O resultado esperado é HTTP 200 com a lista de edições aprovadas, que pode estar vazia.
-
-Se algum serviço terminar durante o arranque, consulta o respetivo registo. Por exemplo:
-
-```sh
-docker compose logs catalogo
-```
-
-Para parar o ambiente local preservando os volumes de dados:
-
-```sh
-docker compose stop
-```
+Pillow está incluída nas dependências para os campos `ImageField`. Os ficheiros ficam em `backend/media/`, servidos em `/media/` no ambiente de desenvolvimento. SQLite guarda o caminho do ficheiro.

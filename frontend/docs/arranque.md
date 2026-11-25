@@ -1,30 +1,26 @@
-# Iniciar o frontend da Rota do Arraial
+# Arrancar o frontend
 
-O frontend usa React e TypeScript. Este guia assume Vite e npm para o desenvolvimento local. Os comandos aplicam-se a uma cópia do projeto já inicializada, com `frontend/package.json`, o script `dev` e `frontend/package-lock.json`.
-
-## 1. Preparar o ambiente
-
-Instala Node.js e npm na versão indicada pelo projeto. Abre um terminal na raiz do repositório e executa:
+Com Node 22.12 ou posterior, executar em `frontend/`:
 
 ```sh
-cd frontend
-node --version
-npm --version
 npm ci
-```
-
-Na primeira configuração do projeto, quem cria a aplicação gera o ficheiro `package-lock.json` com `npm install` e inclui-o no Git. A partir daí, o grupo usa `npm ci`.
-
-## 2. Iniciar o site
-
-```sh
 npm run dev
 ```
 
-Abre o endereço apresentado na linha `Local` do terminal. Mantém o processo aberto enquanto trabalhas. Para o terminar, usa `Ctrl+C`.
+Abrir **http://localhost:5173** com o [backend](../../backend/docs/arranque.md) em execução. Para verificar TypeScript e compilar a aplicação, executar `npm run build`.
 
-## 3. Verificar a ligação à API
+## Dados para os componentes
 
-Para testar a pesquisa de festas, inicia também os serviços indicados no [guia do backend](../../backend/docs/arranque.md). A configuração proposta usa pedidos relativos a `/api/`. No servidor de desenvolvimento do Vite, o proxy de `/api` deve apontar para o endereço do gateway publicado pelo Docker Compose.
+O tipo comum está em `src/api.ts`. A página inicial pede `GET /api/catalogo/edicoes/`. Cada resultado tem `id`, `festa` e `organizador` (identificadores numéricos), `nome_festa`, `localidade`, `ano`, `data_inicio`, `data_fim`, `recinto`, `latitude`, `longitude`, `preco` e `aprovada`. As coordenadas são números, o preço é uma cadeia decimal e as datas têm o formato AAAA-MM-DD.
 
-Abre a página de pesquisa. Nas ferramentas de desenvolvimento do navegador, confirma que o pedido de listagem de edições recebe HTTP 200 e uma resposta JSON. Uma lista vazia é válida enquanto o Catálogo estiver sem dados de exemplo.
+| Página prevista | Dados de entrada |
+|---|---|
+| P1, Explorar festas | O mapa e o calendário recebem a mesma lista de resultados. |
+| P3, Edição da festa | O cartaz recebe a edição selecionada. |
+| P7, Editor de edição | O editor recebe a edição a alterar. A API tem de verificar a permissão de escrita. |
+
+A página inicial já distingue carregamento, lista vazia e falha do pedido. Para a testar com dados, correr `python manage.py carregar_demo` no backend. A documentação da sessão descreve como enviar os cookies e o cabeçalho CSRF.
+
+## Ligação ao Django
+
+Em desenvolvimento local, Vite encaminha `/api` e `/media` para `http://127.0.0.1:8000`. Em Docker, o Compose define `BACKEND_URL=http://backend:8000` para o servidor Vite. Os componentes usam sempre caminhos relativos.
